@@ -9,8 +9,6 @@ def main():
     auth = RubikaAuth()
     driver = auth.login()
 
-    # ... (Phase 1 Auth code remains the same) ...
-
     # Phase 2: Scrape Page
     scraper = DataScraper(driver)
 
@@ -19,11 +17,14 @@ def main():
 
     # Execute the navigation sequence
     if scraper.navigate_to_page(target_shop):
-        scraper.scroll_and_load_posts(scroll_cycles=5, pause_time=2)
+        
+        # REMOVED the manual scroll_and_load_posts call here!
+        # Claude's scrape_all_posts() method handles all scrolling automatically 
+        # in micro-increments ONLY when it runs out of visible tiles.
 
         # Scrapes posts incrementally (handles infinite scroll / virtualization),
         # opening each new post, extracting its data, and returning to the grid.
-        raw_data = scraper.scrape_all_posts()
+        raw_data = scraper.scrape_all_posts(max_posts=20) # Added a safe limit for testing
 
         scraper.save_to_csv(raw_data)
         print(

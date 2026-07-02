@@ -97,87 +97,48 @@ class DataScraper:
 
     def _find_scrollable_ancestor(self):
         """
-        Rubika's post grid lives inside a nested div with its own
-        'overflow: auto/scroll' (confirmed directly in the page source, e.g.
-        class 'rtl-l3f8vc' with inline style 'overflow: auto'), NOT the
-        document body. Scrolling window/body (the old approach) was a no-op,
-        which is why only the initially-rendered batch of tiles was ever found.
-        This walks up from a real post tile to find that actual scrollable
-        container dynamically, so it keeps working even if class names change.
+        Locates the exact virtualized container based on diagnostic output.
+        Targets the specific class 'rtl-l3f8vc' or its virtualized CSS footprint.
         """
         return self.driver.execute_script(
             """
-            let img = document.querySelector('div[width][height] img[src*="/picture/"]');
-            if (!img) return null;
-            let el = img.parentElement;
-            while (el && el !== document.body) {
-                let style = window.getComputedStyle(el);
-                if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                    style.overflow === 'auto' || style.overflow === 'scroll') {
-                    return el;
-                }
-                el = el.parentElement;
-            }
+            // 1. Target the exact class you found in the diagnostic test
+            let exactContainer = document.querySelector('.rtl-l3f8vc');
+            if (exactContainer) return exactContainer;
+            
+            // 2. Fallback: Target the CSS footprint of the virtualized grid
+            let virtualized = document.querySelector('div[style*="overflow: auto"][style*="will-change: transform"]');
+            if (virtualized) return virtualized;
+
             return null;
             """
         )
 
     def scroll_and_load_posts(self, scroll_cycles=5, pause_time=2.0):
         """
-        Injects JavaScript to handle dynamic scrolling to force Rubika's
-        lazy loader into rendering historical posts. Scrolls the actual
-        internal scrollable grid container (see _find_scrollable_ancestor),
-        falling back to window scrolling if that container can't be found.
+        Scrolls the virtualized container by fixed, small pixel increments.
+        Scrolling by 250px ensures we only advance about one row of thumbnails 
+        at a time, preventing the virtual DOM from unloading un-scraped posts.
         """
         print(f"[Scraper] Initializing automated scrolling ({scroll_cycles} cycles)...")
         container = self._find_scrollable_ancestor()
 
         if container is None:
-            print(
-                "[Warning] Could not locate the grid's scrollable container; "
-                "falling back to window scrolling (may not load more posts)."
-            )
-            last_height = self.driver.execute_script(
-                "return document.body.scrollHeight"
-            )
+            print("[Warning] Could not locate the virtualized container.")
+            # Fallback to window scroll just in case
             for i in range(scroll_cycles):
-                self.driver.execute_script(
-                    "window.scrollTo(0, document.body.scrollHeight);"
-                )
+                self.driver.execute_script("window.scrollBy({top: 250, behavior: 'smooth'});")
                 time.sleep(pause_time)
-                new_height = self.driver.execute_script(
-                    "return document.body.scrollHeight"
-                )
-                print(
-                    f"[Log] Scroll cycle {i + 1}/{scroll_cycles} complete. Loading dynamic DOM..."
-                )
-                if new_height == last_height:
-                    print("[Scraper] Reached the end of the profile timeline.")
-                    break
-                last_height = new_height
             return
 
-        last_height = self.driver.execute_script(
-            "return arguments[0].scrollHeight;", container
-        )
         for i in range(scroll_cycles):
+            # Scroll down by roughly one row height (250px) at a time
             self.driver.execute_script(
-                "arguments[0].scrollTo(0, arguments[0].scrollHeight);", container
+                "arguments[0].scrollBy({top: 250, behavior: 'smooth'});", 
+                container
             )
             time.sleep(pause_time)
-
-            new_height = self.driver.execute_script(
-                "return arguments[0].scrollHeight;", container
-            )
-            print(
-                f"[Log] Scroll cycle {i + 1}/{scroll_cycles} complete. Loading dynamic DOM..."
-            )
-
-            if new_height == last_height:
-                print("[Scraper] Reached the end of the profile timeline.")
-                break
-            last_height = new_height
-
+            print(f"[Log] Scroll cycle {i + 1}/{scroll_cycles} complete.")
     def _wait_for_post_images_loaded(self, timeout=15):
         """
         Waits until every currently-present post image has actually finished
@@ -425,7 +386,8 @@ class DataScraper:
             try:
                 WebDriverWait(self.driver, 6).until(
                     lambda d: (
-                        "لایک" in d.execute_script("return document.body.innerText;")
+                        "لایک" in d.execute_script("return document.body.innerText;") or
+                        "مشاهده" in d.execute_script("return document.body.innerText;")
                     )
                 )
             except Exception:
