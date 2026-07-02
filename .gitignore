@@ -1,0 +1,24 @@
+# Local Data & Session Storage
+data/
+*.csv
+*.pkl
+*.json
+
+# Downloaded Web Drivers
+drivers/
+*.exe
+
+# Python Virtual Environments
+.venv/
+venv/
+env/
+
+# Python Cache & Bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# IDEs & OS Files
+.vscode/
+.idea/
+.DS_Store
