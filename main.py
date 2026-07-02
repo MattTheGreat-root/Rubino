@@ -1,38 +1,55 @@
+from analyzer import Analyzer
 from data_scraper import DataScraper
 from rubika_auth import RubikaAuth
 
 
 def main():
-    print("--- Starting Rubino Smart Assistant ---")
+    print("=== Rubino Smart Assistant ===")
+    print("1. Scrape + Analyze")
+    print("2. Analyze Existing CSV")
+    
 
-    # Phase 1: Establish Session
-    auth = RubikaAuth()
-    driver = auth.login()
+    choice = input("Select option: ")
 
-    # Phase 2: Scrape Page
-    scraper = DataScraper(driver)
+    if choice == "1":
 
-    # Prompt user for target page name
-    target_shop = input("\nEnter target shop username (without @): ")
+        auth = RubikaAuth()
+        driver = auth.login()
 
-    # Execute the navigation sequence
-    if scraper.navigate_to_page(target_shop):
+        scraper = DataScraper(driver)
+
+        target_shop = input("Target shop: ")
+
+        if scraper.navigate_to_page(target_shop):
+
+            data = scraper.scrape_all_posts(max_posts=20)
+            scraper.save_to_csv(data)
+
+            analyzer = Analyzer("data/scraped_products.csv")
+            analyzer.run()
+
+    elif choice == "2":
+
+        analyzer = Analyzer("data/scraped_products.csv")
+        analyzer.run()
+
+    # ... inside your choice logic in main.py ...
+
+    elif choice == "3":
+        auth = RubikaAuth()
+        driver = auth.login()
         
-        # REMOVED the manual scroll_and_load_posts call here!
-        # Claude's scrape_all_posts() method handles all scrolling automatically 
-        # in micro-increments ONLY when it runs out of visible tiles.
-
-        # Scrapes posts incrementally (handles infinite scroll / virtualization),
-        # opening each new post, extracting its data, and returning to the grid.
-        raw_data = scraper.scrape_all_posts(max_posts=20) # Added a safe limit for testing
-
-        scraper.save_to_csv(raw_data)
-        print(
-            f"\n[System] Phase 2 Execution complete. {len(raw_data)} posts scraped into CSV dataset."
-        )
+        from broadcaster import Broadcaster
+        broadcaster = Broadcaster(driver)
+        
+        # Test it by sending a message to yourself or a known test account!
+        # Remember to navigate to the messenger first
+        if broadcaster.navigate_to_messenger():
+            test_list = ["farzannn1351"] # Replace with a safe test username
+            broadcaster.send_to_list(test_list, "سلام! این یک پیام تست از طرف ربات است.")
 
     else:
-        print("\n[System] Execution aborted due to navigation failure.")
+        print("Invalid choice")
 
 
 if __name__ == "__main__":
