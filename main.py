@@ -1,55 +1,68 @@
 from analyzer import Analyzer
 from data_scraper import DataScraper
 from rubika_auth import RubikaAuth
-
+from broadcaster import Broadcaster
 
 def main():
-    print("=== Rubino Smart Assistant ===")
-    print("1. Scrape + Analyze")
-    print("2. Analyze Existing CSV")
-    
+    while True:
+        print("\n=== Rubino Smart Assistant ===")
+        print("1. Scrape + Analyze")
+        print("2. Analyze Existing CSV")
+        print("3. Broadcaster: Send test message to a Specific User")
+        print("4. Broadcaster: Send test message to All Contacts")
+        print("0. Exit")
 
-    choice = input("Select option: ")
+        choice = input("\nSelect option: ")
 
-    if choice == "1":
+        if choice == "1":
+            auth = RubikaAuth()
+            driver = auth.login()
+            scraper = DataScraper(driver)
+            
+            target_shop = input("Target shop username (without @): ")
+            
+            if scraper.navigate_to_page(target_shop):
+                data = scraper.scrape_all_posts(max_posts=20)
+                scraper.save_to_csv(data)
+                
+                analyzer = Analyzer("data/scraped_products.csv")
+                analyzer.run()
 
-        auth = RubikaAuth()
-        driver = auth.login()
-
-        scraper = DataScraper(driver)
-
-        target_shop = input("Target shop: ")
-
-        if scraper.navigate_to_page(target_shop):
-
-            data = scraper.scrape_all_posts(max_posts=20)
-            scraper.save_to_csv(data)
-
+        elif choice == "2":
             analyzer = Analyzer("data/scraped_products.csv")
             analyzer.run()
 
-    elif choice == "2":
+        elif choice == "3":
+            target_user = input("Enter target username to message (without @): ")
+            
+            auth = RubikaAuth()
+            driver = auth.login()
+            broadcaster = Broadcaster(driver)
+            
+            if broadcaster.navigate_to_messenger():
+                # Passing the target user as a single-item list
+                broadcaster.send_to_list([target_user], test_message="test")
 
-        analyzer = Analyzer("data/scraped_products.csv")
-        analyzer.run()
+        elif choice == "4":
+            print("[System] Warning: This will message all your Rubika contacts.")
+            confirm = input("Are you sure you want to proceed? (y/n): ")
+            
+            if confirm.lower() == 'y':
+                auth = RubikaAuth()
+                driver = auth.login()
+                broadcaster = Broadcaster(driver)
+                
+                if broadcaster.navigate_to_messenger():
+                    broadcaster.broadcast_to_all(test_message="test")
+            else:
+                print("[System] Broadcast cancelled.")
 
-    # ... inside your choice logic in main.py ...
+        elif choice == "0":
+            print("Exiting Rubino Smart Assistant. Goodbye!")
+            break
 
-    elif choice == "3":
-        auth = RubikaAuth()
-        driver = auth.login()
-        
-        from broadcaster import Broadcaster
-        broadcaster = Broadcaster(driver)
-        
-        # Test it by sending a message to yourself or a known test account!
-        # Remember to navigate to the messenger first
-        if broadcaster.navigate_to_messenger():
-            test_list = ["farzannn1351"] # Replace with a safe test username
-            broadcaster.send_to_list(test_list, "سلام! این یک پیام تست از طرف ربات است.")
-
-    else:
-        print("Invalid choice")
+        else:
+            print("Invalid choice. Please select a valid option.")
 
 
 if __name__ == "__main__":
