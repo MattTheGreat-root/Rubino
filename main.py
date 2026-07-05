@@ -58,9 +58,13 @@ def main():
                 print("[System] Broadcast cancelled.")
 
         elif choice == "0":
-            print("Exiting Rubino Smart Assistant. Goodbye!")
+            print("Exiting Rubino Smart Assistant. Saving session data...")
+            try:
+                driver.quit() # THIS IS CRITICAL. It safely saves the local database.
+            except:
+                pass
+            print("Goodbye!")
             break
-
         else:
             print("Invalid choice. Please select a valid option.")
 

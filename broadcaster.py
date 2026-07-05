@@ -35,63 +35,76 @@ class Broadcaster:
 
     def send_to_list(self, username_list, test_message="This is a test message."):
         """
-        Mode 1: Iterates through a provided list of usernames, searches for them, 
-        and dispatches the test message.
+        Mode 1: Uses the proven DataScraper navigation to find the user's profile,
+        clicks the direct 'Message' button on their page using a hardware-level simulation, 
+        and sends the text natively.
         """
-        print(f"[Broadcaster] Starting Selected List mode for {len(username_list)} users.")
+        print(f"[Broadcaster] Starting Selected List mode (Profile Bypass) for {len(username_list)} users.")
+        
+        # Import inside the method to avoid circular imports
+        from data_scraper import DataScraper
+        scraper = DataScraper(self.driver)
         
         for username in username_list:
             print(f" -> Processing user: {username}")
             try:
-                # 1. Locate the Messenger search bar
-                search_xpath = "//input[contains(@class, 'input-search-input') or @placeholder='جستجو']"
-                search_input = self.wait.until(EC.element_to_be_clickable((By.XPATH, search_xpath)))
+                # 1. Use the reliable Vitrin search
+                print("    [Debug] Searching for user via Vitrin...")
+                if not scraper.navigate_to_page(username):
+                    print(f"    [Error] Could not find {username}. They may not have a Rubino profile.")
+                    continue
                 
-                # 2. Clear and type the username
-                self.driver.execute_script("arguments[0].click();", search_input)
-                time.sleep(0.5)
-                search_input.clear()
-                self.driver.execute_script("arguments[0].value = '';", search_input)
-                
-                search_input.send_keys(username)
-                print(f"    [Broadcaster] Searched for {username}. Waiting for results...")
-                time.sleep(3) 
-                
-                # 3. Click the exact target profile from the search results
-                exact_result_xpath = f"//span[text()='{username}'] | //div[contains(text(), '{username}')]"
-                target_profile = self.wait.until(EC.element_to_be_clickable((By.XPATH, exact_result_xpath)))
-                self.driver.execute_script("arguments[0].click();", target_profile)
-                print(f"    [Success] Opened chat with {username}.")
                 time.sleep(2) 
                 
-                # 4. TYPE AND SEND THE MESSAGE
-                # Target the contenteditable rich text area
+                # 2. Click the 'پیام' (Message) button on their profile
+                print("    [Debug] Profile loaded. Performing hardware-level click...")
+                
+                # Target the SPAN directly, not the button wrapper. 
+                msg_span_xpath = "//button/span[text()='پیام']"
+                msg_span = self.wait.until(EC.presence_of_element_located((By.XPATH, msg_span_xpath)))
+                
+                # Force the element into the exact center of the viewport
+                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", msg_span)
+                time.sleep(1)
+                
+                # Fake a literal human mouse sequence: move, down, wait, up
+                from selenium.webdriver.common.action_chains import ActionChains
+                actions = ActionChains(self.driver)
+                actions.move_to_element(msg_span).click_and_hold().pause(0.2).release().perform()
+                
+                print(f"    [Success] Triggered SPA routing. Waiting for chat UI...")
+                time.sleep(5) # Give the state machine plenty of time to transition
+                
+               # 3. TYPE AND SEND THE MESSAGE
+                print("    [Debug] Locating chat input box...")
+                
+                # Target the exact Angular rich textarea from your HTML
                 chat_box_xpath = "//div[contains(@class, 'composer_rich_textarea') and @contenteditable='true']"
-                chat_box = self.wait.until(EC.element_to_be_clickable((By.XPATH, chat_box_xpath)))
+                chat_box = self.wait.until(EC.presence_of_element_located((By.XPATH, chat_box_xpath)))
                 
-                # Click to focus
-                self.driver.execute_script("arguments[0].click();", chat_box)
+                # 1. Force the browser to focus the element via JavaScript
+                self.driver.execute_script("arguments[0].focus();", chat_box)
                 time.sleep(0.5)
                 
-                # Clear existing drafts using JavaScript (Standard .clear() fails on divs)
-                self.driver.execute_script("arguments[0].innerHTML = '';", chat_box)
+                # 2. Use ActionChains to mimic a literal human typing on the keyboard
+                from selenium.webdriver.common.action_chains import ActionChains
+                actions = ActionChains(self.driver)
                 
-                # Type the message
-                chat_box.send_keys(test_message)
-                time.sleep(1) # Brief pause to allow the UI to register the text and swap the send button
+                # 3. Execute a continuous hardware-level sequence: Move -> Click -> Type -> Enter
+                actions.move_to_element(chat_box).click().pause(0.5)
+                actions.send_keys(test_message).pause(1)
+                actions.send_keys(Keys.ENTER).perform()
                 
-                # Send the message by simulating the ENTER key
-                chat_box.send_keys(Keys.ENTER)
                 print(f"    [Success] Message dispatched to {username}.")
-                time.sleep(2) 
-                
+                time.sleep(2)
             except Exception as e:
                 print(f"    [Error] Failed to process {username}: {str(e)}")
-                
-            finally:
-                # Always return to the main messenger view before the next loop iteration
-                self.navigate_to_messenger()
             
+            finally:
+                # scraper.navigate_to_page() automatically resets to the Vitrin tab 
+                # at the start of the next loop, so we don't need a back button!
+                pass                        
+                
     def broadcast_to_all(self, test_message="This is a test message."):
         """
         Mode 2: Opens the new chat menu, scrapes all contact names into memory, 
@@ -101,21 +114,19 @@ class Broadcaster:
         
         try:
             # 1. Click the floating "New Chat" button (Pencil icon)
-            # We look for the common Rubika pencil icon class 'rbico-edit' or a primary circle button
             new_chat_xpath = "//button[.//i[contains(@class, 'rbico-edit')] or contains(@class, 'btn-circle')]"
             new_chat_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, new_chat_xpath)))
             self.driver.execute_script("arguments[0].click();", new_chat_btn)
             time.sleep(1)
             
             # 2. Click "New Message" or "New Chat" from the sub-menu if it appears
-            # Bypassing the ripple effect to click the actual menu item
             new_message_menu_xpath = "//li[.//div[contains(@class, 'c-ripple')]]" 
             menu_items = self.wait.until(EC.presence_of_all_elements_located((By.XPATH, new_message_menu_xpath)))
             if menu_items:
                 self.driver.execute_script("arguments[0].click();", menu_items[0])
             time.sleep(2)
             
-            # 3. Check if the contact list is empty (Based on your provided HTML)
+            # 3. Check if the contact list is empty
             empty_state = self.driver.find_elements(By.XPATH, "//li[contains(@class, 'chatlist-empty')]")
             if empty_state:
                 print("[Warning] No contacts found in this account ('هنوز مخاطبی در روبیکا ندارید').")
@@ -134,8 +145,6 @@ class Broadcaster:
             last_height = self.driver.execute_script("return arguments[0].scrollHeight;", scroll_container)
             
             while True:
-                # Extract all currently rendered contact names
-                # In Rubika, the name is usually inside an h3, span, or a div with class 'peer-title'
                 contact_elements = self.driver.find_elements(By.XPATH, "//ul[contains(@class, 'contacts-container')]//li//div[contains(@class, 'peer-title')] | //ul[contains(@class, 'contacts-container')]//li//h3")
                 
                 for el in contact_elements:
@@ -144,13 +153,11 @@ class Broadcaster:
                         extracted_names.append(name)
                         print(f"    [Scraped] Found contact: {name}")
 
-                # Scroll down slightly to load more contacts (Virtual Grid safe)
                 self.driver.execute_script("arguments[0].scrollBy({top: 400, behavior: 'smooth'});", scroll_container)
                 time.sleep(1.5)
                 
                 new_height = self.driver.execute_script("return arguments[0].scrollHeight;", scroll_container)
                 
-                # If scrolling didn't change the height, try forcing to the absolute bottom
                 if new_height == last_height:
                     self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", scroll_container)
                     time.sleep(1.5)
@@ -169,7 +176,7 @@ class Broadcaster:
             # 6. Escape back to the main messenger to prepare for sending
             self.navigate_to_messenger()
             
-            # 7. Feed the scraped names directly into your Mode 1 sender!
+            # 7. Feed the scraped names directly into your Mode 1 sender
             if extracted_names:
                 print("[Broadcaster] Transitioning to sending phase...")
                 self.send_to_list(extracted_names, test_message)

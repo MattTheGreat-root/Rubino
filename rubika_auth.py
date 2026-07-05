@@ -1,16 +1,14 @@
-import pickle
 import os
 import time
-import json
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
 class RubikaAuth:
-    def __init__(self, data_dir='data'):
-        self.data_dir = data_dir
-        self.cookie_path = os.path.join(self.data_dir, 'cookies.pkl')
-        self.local_storage_path = os.path.join(self.data_dir, 'local_storage.json')
+    def __init__(self, data_dir='chrome_profile'):
+        # Chrome requires an absolute path for user data directories
+        self.data_dir = os.path.abspath(data_dir)
         self.base_url = "https://m.rubika.ir/"
         
         # Ensure the data directory exists
@@ -20,13 +18,22 @@ class RubikaAuth:
         self.driver = self._initialize_driver()
 
     def _initialize_driver(self):
-        """Sets up the driver, prioritizing a bundled local driver for portability."""
-        print("[System] Initializing Chrome WebDriver...")
+        """Sets up the driver using a persistent, native Chrome profile."""
+        print("[System] Initializing Chrome WebDriver with Native Profile...")
         chrome_options = Options()
         chrome_options.add_experimental_option("detach", True) 
         
+        # Stealth options to hide automation
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        
+        # THE MAGIC FIX: Tell Chrome to use a persistent local folder for ALL session data
+        # This completely replaces our manual cookie/localStorage injection
+        chrome_options.add_argument(f"--user-data-dir={self.data_dir}")
+        chrome_options.add_argument("--profile-directory=Default")
+                
         # Fallback mechanism: Check for a local driver in a 'drivers' folder
-        # This is what guarantees it runs on your professor's machine offline
         local_driver_path = os.path.join(os.getcwd(), 'drivers', 'chromedriver.exe')
         
         try:
@@ -35,7 +42,6 @@ class RubikaAuth:
                 service = Service(local_driver_path)
                 driver = webdriver.Chrome(service=service, options=chrome_options)
             else:
-                # If no local driver, fallback to Selenium Manager (requires internet/VPN on first run)
                 print("[System] No local driver found. Attempting dynamic download via Selenium Manager...")
                 driver = webdriver.Chrome(options=chrome_options)
                 
@@ -47,59 +53,24 @@ class RubikaAuth:
             raise e
 
     def login(self):
-        """Handles navigating to Rubika and managing the session state."""
+        """Handles navigating to Rubika. Login state is now managed natively by Chrome."""
         print(f"[System] Navigating to {self.base_url}")
         self.driver.get(self.base_url)
+        time.sleep(3)
 
-        # Check that BOTH the cookies and local storage files exist
-        if os.path.exists(self.cookie_path) and os.path.exists(self.local_storage_path):
-            print("[System] Found saved session data. Attempting auto-login...")
-            self.load_session()
-            
-            # Refresh the page so the injected session data takes effect
-            self.driver.refresh()
-            time.sleep(5) 
-            print("[Success] Logged in using saved session.")
-        else:
+        # Check if Rubika's login button or input field is present to determine if we need manual login
+        # If the URL redirects to the messenger or vitrin, we are already logged in
+        if "login" in self.driver.current_url or len(self.driver.find_elements(By.XPATH, "//input[@type='tel' or @name='phone_number']")) > 0:
             print("\n" + "="*50)
-            print("[Action Required] No complete saved session found.")
+            print("[Action Required] You are not logged in.")
             print("1. Please log in manually in the opened browser window.")
             print("2. Enter the SMS verification code.")
             print("3. Wait until you fully see your chats.")
             print("="*50 + "\n")
             
             input("Press ENTER in this console *ONLY AFTER* you have successfully logged in...")
-            self.save_session()
-            print("[Success] Session saved for future use.")
+            print("[Success] Session saved automatically by Chrome.")
+        else:
+            print("[Success] Native Chrome Profile loaded. You are already logged in.")
             
         return self.driver
-
-    def save_session(self):
-        """Extracts both Cookies and Local Storage to save the full authenticated state."""
-        # 1. Save Cookies
-        cookies = self.driver.get_cookies()
-        with open(self.cookie_path, 'wb') as file:
-            pickle.dump(cookies, file)
-            
-        # 2. Save Local Storage
-        local_storage = self.driver.execute_script("return window.localStorage;")
-        with open(self.local_storage_path, 'w') as file:
-            json.dump(local_storage, file)
-            
-        print("[System] Cookies and Local Storage saved successfully.")
-
-    def load_session(self):
-        """Injects saved Cookies and Local Storage back into the browser."""
-        # 1. Load Cookies
-        with open(self.cookie_path, 'rb') as file:
-            cookies = pickle.load(file)
-            for cookie in cookies:
-                if 'rubika.ir' in cookie['domain']:
-                    self.driver.add_cookie(cookie)
-                    
-        # 2. Load Local Storage
-        with open(self.local_storage_path, 'r') as file:
-            local_storage = json.load(file)
-            for key, value in local_storage.items():
-                # We pass key and value as arguments to prevent JS syntax errors if the data contains quotes
-                self.driver.execute_script("window.localStorage.setItem(arguments[0], arguments[1]);", key, value)
