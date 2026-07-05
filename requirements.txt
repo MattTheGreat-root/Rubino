@@ -1,0 +1,5 @@
+pandas
+matplotlib
+scikit-learn
+selenium
+beautifulsoup4
