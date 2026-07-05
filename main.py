@@ -7,9 +7,9 @@ def main():
     while True:
         print("\n=== Rubino Smart Assistant ===")
         print("1. Scrape + Analyze")
-        print("2. Analyze Existing CSV")
-        print("3. Broadcaster: Send test message to a Specific User")
-        print("4. Broadcaster: Send test message to All Contacts")
+        print("2. Load Offline Data")
+        print("3. Send message to a Specific User")
+        print("4. Send message to All Contacts")
         print("0. Exit")
 
         choice = input("\nSelect option: ")
@@ -34,33 +34,35 @@ def main():
 
         elif choice == "3":
             target_user = input("Enter target username to message (without @): ")
+            message_text = input("Enter the message you want to send: ")
             
             auth = RubikaAuth()
             driver = auth.login()
             broadcaster = Broadcaster(driver)
             
             if broadcaster.navigate_to_messenger():
-                # Passing the target user as a single-item list
-                broadcaster.send_to_list([target_user], test_message="test")
+                broadcaster.send_to_list([target_user], test_message=message_text)
 
         elif choice == "4":
             print("[System] Warning: This will message all your Rubika contacts.")
             confirm = input("Are you sure you want to proceed? (y/n): ")
             
             if confirm.lower() == 'y':
+                message_text = input("Enter the message you want to send to everyone: ")
+                
                 auth = RubikaAuth()
                 driver = auth.login()
                 broadcaster = Broadcaster(driver)
                 
                 if broadcaster.navigate_to_messenger():
-                    broadcaster.broadcast_to_all(test_message="test")
+                    broadcaster.broadcast_to_all(test_message=message_text)
             else:
                 print("[System] Broadcast cancelled.")
 
         elif choice == "0":
             print("Exiting Rubino Smart Assistant. Saving session data...")
             try:
-                driver.quit() # THIS IS CRITICAL. It safely saves the local database.
+                driver.quit()
             except:
                 pass
             print("Goodbye!")
@@ -68,6 +70,5 @@ def main():
         else:
             print("Invalid choice. Please select a valid option.")
 
-
 if __name__ == "__main__":
-    main()
+    main()  
