@@ -11,6 +11,7 @@ class Broadcaster:
 
     def navigate_to_messenger(self):
         """
+        //*[@id="emoji-dropdown"]/div[1]/div[1]/div[1]/div[3]/div[1]/div/div[2]
         Safely escapes the Rubino feed and opens the main Messenger tab.
         """
         print("[Broadcaster] Navigating to main Messenger feed...")
@@ -34,81 +35,81 @@ class Broadcaster:
             return True
 
     def send_to_list(self, username_list, test_message="This is a test message."):
-        """
-        Mode 1: Uses the proven DataScraper navigation to find the user's profile,
-        clicks the direct 'Message' button on their page using a hardware-level simulation, 
-        and sends the text natively.
-        """
         print(f"[Broadcaster] Starting Selected List mode (Profile Bypass) for {len(username_list)} users.")
         
-        # Import inside the method to avoid circular imports
         from data_scraper import DataScraper
         scraper = DataScraper(self.driver)
         
         for username in username_list:
             print(f" -> Processing user: {username}")
             try:
-                # 1. Use the reliable Vitrin search
+                # 1. Search via Vitrin
                 print("    [Debug] Searching for user via Vitrin...")
                 if not scraper.navigate_to_page(username):
-                    print(f"    [Error] Could not find {username}. They may not have a Rubino profile.")
+                    print(f"    [Error] Could not find {username}.")
                     continue
                 
                 time.sleep(2) 
                 
-                # 2. Click the 'پیام' (Message) button on their profile
-                print("    [Debug] Profile loaded. Performing hardware-level click...")
+                # 2. Click the 'پیام' (Message) button
+                print("    [Debug] Profile loaded. Clicking 'Message' button...")
+                msg_btn_xpath = "//button[.//span[text()='پیام']]"
+                msg_btn = self.wait.until(EC.presence_of_element_located((By.XPATH, msg_btn_xpath)))
+                self.driver.execute_script("arguments[0].click();", msg_btn)
+                print(f"    [Success] Triggered SPA routing. Waiting for chat UI sandbox...")
+                time.sleep(5) 
                 
-                # Target the SPAN directly, not the button wrapper. 
-                msg_span_xpath = "//button/span[text()='پیام']"
-                msg_span = self.wait.until(EC.presence_of_element_located((By.XPATH, msg_span_xpath)))
+                # ==========================================
+                # THE IFRAME BYPASS
+                # ==========================================
+                print("    [Debug] Breaching the <iframe> sandbox...")
                 
-                # Force the element into the exact center of the viewport
-                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", msg_span)
+                # Based on the HTML, the active chat iframe's URL contains 'openchat'
+                iframe_xpath = "//iframe[contains(@src, 'openchat')]"
+                
+                # Tell Selenium to wait for the iframe to load, then step INSIDE it
+                self.wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, iframe_xpath)))
+                print("    [Debug] Successfully entered the chat iframe.")
                 time.sleep(1)
-                
-                # Fake a literal human mouse sequence: move, down, wait, up
-                from selenium.webdriver.common.action_chains import ActionChains
-                actions = ActionChains(self.driver)
-                actions.move_to_element(msg_span).click_and_hold().pause(0.2).release().perform()
-                
-                print(f"    [Success] Triggered SPA routing. Waiting for chat UI...")
-                time.sleep(5) # Give the state machine plenty of time to transition
-                
-               # 3. TYPE AND SEND THE MESSAGE
+
+                # 3. TYPE AND SEND THE MESSAGE
                 print("    [Debug] Locating chat input box...")
                 
-                # Target the exact Angular rich textarea from your HTML
+                # Now that we are inside the iframe, Selenium can actually see the text box!
                 chat_box_xpath = "//div[contains(@class, 'composer_rich_textarea') and @contenteditable='true']"
                 chat_box = self.wait.until(EC.presence_of_element_located((By.XPATH, chat_box_xpath)))
                 
-                # 1. Force the browser to focus the element via JavaScript
-                self.driver.execute_script("arguments[0].focus();", chat_box)
-                time.sleep(0.5)
+                self.driver.execute_script("arguments[0].focus(); arguments[0].click();", chat_box)
+                time.sleep(1)
                 
-                # 2. Use ActionChains to mimic a literal human typing on the keyboard
-                from selenium.webdriver.common.action_chains import ActionChains
-                actions = ActionChains(self.driver)
+                # The Angular bypass payload
+                js_script = """
+                    var box = arguments[0];
+                    box.innerText = arguments[1];
+                    box.dispatchEvent(new Event('input', { bubbles: true }));
+                """
+                self.driver.execute_script(js_script, chat_box, test_message)
+                print("    [Debug] Text injected and Angular state updated.")
+                time.sleep(1)
                 
-                # 3. Execute a continuous hardware-level sequence: Move -> Click -> Type -> Enter
-                actions.move_to_element(chat_box).click().pause(0.5)
-                actions.send_keys(test_message).pause(1)
-                actions.send_keys(Keys.ENTER).perform()
-                
+                chat_box.send_keys(Keys.ENTER)
                 print(f"    [Success] Message dispatched to {username}.")
-                time.sleep(2)
+                time.sleep(2) 
+                
             except Exception as e:
                 print(f"    [Error] Failed to process {username}: {str(e)}")
             
             finally:
-                # scraper.navigate_to_page() automatically resets to the Vitrin tab 
-                # at the start of the next loop, so we don't need a back button!
-                pass                        
-                
+                # ==========================================
+                # THE CLEANUP (CRITICAL)
+                # ==========================================
+                # Step back out of the iframe so the Vitrin search works for the next loop!
+                self.driver.switch_to.default_content()
+
     def broadcast_to_all(self, test_message="This is a test message."):
         """
         Mode 2: Opens the new chat menu, scrapes all contact names into memory, 
-        then uses the search logic to message them individually.
+        then uses the native Messenger search to bypass Vitrin and message them individually.
         """
         print("[Broadcaster] Starting Broadcast to All Contacts mode.")
         
@@ -121,7 +122,7 @@ class Broadcaster:
             
             # 2. Click "New Message" or "New Chat" from the sub-menu if it appears
             new_message_menu_xpath = "//li[.//div[contains(@class, 'c-ripple')]]" 
-            menu_items = self.wait.until(EC.presence_of_all_elements_located((By.XPATH, new_message_menu_xpath)))
+            menu_items = self.driver.find_elements(By.XPATH, new_message_menu_xpath)
             if menu_items:
                 self.driver.execute_script("arguments[0].click();", menu_items[0])
             time.sleep(2)
@@ -173,14 +174,93 @@ class Broadcaster:
 
             print(f"[Success] Gathered a total of {len(extracted_names)} contacts.")
             
-            # 6. Escape back to the main messenger to prepare for sending
+            # 6. Escape back to the main messenger to reset state
             self.navigate_to_messenger()
             
-            # 7. Feed the scraped names directly into your Mode 1 sender
-            if extracted_names:
-                print("[Broadcaster] Transitioning to sending phase...")
-                self.send_to_list(extracted_names, test_message)
-                
+            if not extracted_names:
+                return
+            
+            # 7. THE NATIVE MESSENGER SENDING LOOP
+            print("[Broadcaster] Transitioning to sending phase...")
+            
+            for name in extracted_names:
+                print(f" -> Processing contact: {name}")
+                try:
+                    # Open the new chat modal again
+                    new_chat_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, new_chat_xpath)))
+                    self.driver.execute_script("arguments[0].click();", new_chat_btn)
+                    time.sleep(1)
+                    
+                    menu_items = self.driver.find_elements(By.XPATH, new_message_menu_xpath)
+                    if menu_items:
+                        self.driver.execute_script("arguments[0].click();", menu_items[0])
+                    time.sleep(1.5)
+                    
+                    # Target the search bar inside the contacts modal
+                    search_input_xpath = "//input[@type='text']" 
+                    search_inputs = self.driver.find_elements(By.XPATH, search_input_xpath)
+                    
+                    active_search = None
+                    for inp in search_inputs:
+                        if inp.is_displayed():
+                            active_search = inp
+                            break
+                            
+                    if active_search:
+                        active_search.clear()
+                        active_search.send_keys(name)
+                        time.sleep(1.5) # Wait for list to filter
+                        
+                    # Find and click the specific contact in the filtered list
+                    safe_name = name.replace("'", "") # Prevent XPath crashes if name has an apostrophe
+                    contact_xpath = f"//ul[contains(@class, 'contacts-container')]//li[.//div[contains(text(), '{safe_name}')] or .//h3[contains(text(), '{safe_name}')]]"
+                    contact_els = self.driver.find_elements(By.XPATH, contact_xpath)
+                    
+                    if not contact_els:
+                        print(f"    [Warning] Could not find {name} after searching. Skipping.")
+                        self.navigate_to_messenger()
+                        continue
+                        
+                    # Click the contact to open their chat
+                    self.driver.execute_script("arguments[0].click();", contact_els[0])
+                    print(f"    [Success] Opened chat for {name}. Waiting for iframe...")
+                    time.sleep(3)
+                    
+                    # ==========================================
+                    # THE IFRAME BYPASS (Copied from Mode 1)
+                    # ==========================================
+                    iframe_xpath = "//iframe[contains(@src, 'openchat')]"
+                    self.wait.until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, iframe_xpath)))
+                    print("    [Debug] Successfully entered the chat iframe.")
+                    time.sleep(1)
+
+                    chat_box_xpath = "//div[contains(@class, 'composer_rich_textarea') and @contenteditable='true']"
+                    chat_box = self.wait.until(EC.presence_of_element_located((By.XPATH, chat_box_xpath)))
+                    
+                    self.driver.execute_script("arguments[0].focus(); arguments[0].click();", chat_box)
+                    time.sleep(1)
+                    
+                    js_script = """
+                        var box = arguments[0];
+                        box.innerText = arguments[1];
+                        box.dispatchEvent(new Event('input', { bubbles: true }));
+                    """
+                    self.driver.execute_script(js_script, chat_box, test_message)
+                    time.sleep(1)
+                    
+                    chat_box.send_keys(Keys.ENTER)
+                    print(f"    [Success] Message dispatched to {name}.")
+                    time.sleep(2)
+                    
+                except Exception as e:
+                    print(f"    [Error] Failed to process {name}: {str(e)}")
+                    
+                finally:
+                    # CRITICAL: Always step back out of the iframe and reset to messenger for the next loop
+                    self.driver.switch_to.default_content()
+                    self.navigate_to_messenger()
+                    
         except Exception as e:
             print(f"[Error] Broadcast gathering failed: {str(e)}")
+            self.driver.switch_to.default_content()
             self.navigate_to_messenger()
