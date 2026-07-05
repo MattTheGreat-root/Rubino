@@ -26,23 +26,35 @@ class DataScraper:
 
         try:
             self.driver.switch_to.default_content()
-            time.sleep(1)
+            time.sleep(2)
 
             vitrin_tab_xpath = "//button[.//span[text()='ویترین']]"
             vitrin_tab = wait.until(EC.element_to_be_clickable((By.XPATH, vitrin_tab_xpath)))
             self.driver.execute_script("arguments[0].click();", vitrin_tab)
             
-            time.sleep(1)
+            time.sleep(2)
             dummy_search_trigger_xpath = "//*[text()='جستجو' or contains(@placeholder, 'جستجو')]"
             dummy_search_trigger = wait.until(EC.element_to_be_clickable((By.XPATH, dummy_search_trigger_xpath)))
             self.driver.execute_script("arguments[0].click();", dummy_search_trigger)
 
-            time.sleep(1)  
+            time.sleep(2)  
+            
+            # Find the actual search input
             actual_search_input_xpath = "//input[contains(@placeholder, 'جستجوی کاربر') or @type='text']"
-            actual_search_input = wait.until(EC.element_to_be_clickable((By.XPATH, actual_search_input_xpath)))
+            search_inputs = self.driver.find_elements(By.XPATH, actual_search_input_xpath)
+            
+            # Filter out the ghost elements by finding the one that is physically displayed
+            actual_search_input = None
+            for inp in search_inputs:
+                if inp.is_displayed():
+                    actual_search_input = inp
+                    break
+                    
+            if not actual_search_input:
+                raise Exception("Search input box not found or not visible.")
 
-            actual_search_input.click()
-            time.sleep(1)
+            self.driver.execute_script("arguments[0].focus(); arguments[0].click();", actual_search_input)
+            time.sleep(2)
             actual_search_input.clear()
             actual_search_input.send_keys(target_username)
             actual_search_input.send_keys(Keys.ENTER)
@@ -59,8 +71,10 @@ class DataScraper:
 
         except Exception as e:
             print(f"Khata to navigate_to_page: {str(e)}")
+            self.driver.get("https://m.rubika.ir/")
+            time.sleep(4)
             return False
-
+        
     def _find_scrollable_ancestor(self):
         return self.driver.execute_script(
             """

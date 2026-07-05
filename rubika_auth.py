@@ -15,6 +15,11 @@ class RubikaAuth:
         self.driver = self._init_driver()
 
     def _init_driver(self):
+        from selenium.common.exceptions import SessionNotCreatedException
+        from selenium.webdriver.chrome.service import Service
+        import sys
+        import os
+        
         print("[System] Firing up Chrome...")
         opt = Options()
         opt.add_experimental_option("detach", True) 
@@ -25,10 +30,26 @@ class RubikaAuth:
         opt.add_argument(f"--user-data-dir={self.profile_path}")
         opt.add_argument("--profile-directory=Default")
                 
-        # Selenium manager
-        driver = webdriver.Chrome(options=opt)
-        driver.maximize_window()
-        return driver
+        try:
+            local_driver = os.path.join(os.getcwd(), "chromedriver.exe")
+            
+            if os.path.exists(local_driver):
+                print("[System] Local chromedriver.exe found. Bypassing network download (No VPN needed).")
+                service = Service(local_driver)
+                driver = webdriver.Chrome(service=service, options=opt)
+            else:
+                driver = webdriver.Chrome(options=opt)
+                
+            driver.maximize_window()
+            return driver
+            
+        except SessionNotCreatedException:
+            print("\n" + "="*50)
+            print("[FATAL ERROR] Chrome is already running!")
+            print("Chrome locks the profile folder to a single process.")
+            print("You must close the existing Chrome window (Cmd+Q / Alt+F4) before running this script.")
+            print("="*50 + "\n")
+            sys.exit(1)
 
     def login(self):
         self.driver.get(self.base_url)

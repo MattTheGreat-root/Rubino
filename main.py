@@ -22,7 +22,7 @@ def main():
             target_shop = input("Target shop username (without @): ")
             
             if scraper.navigate_to_page(target_shop):
-                data = scraper.scrape_all_posts(max_posts=20)
+                data = scraper.scrape_all_posts(max_posts=40)
                 scraper.save_to_csv(data)
                 
                 analyzer = Analyzer("data/scraped_products.csv")
