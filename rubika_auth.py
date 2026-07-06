@@ -59,7 +59,7 @@ class RubikaAuth:
         
         if "login" in self.driver.current_url or needs_login:
             print("==> Not logged in!")
-            input("Tu browser login kon, chat ha ke load shod inja ENTER bezan... ")
+            input("Press ENTER *ONLY* after you have successfuly logged in... ")
             print("Session saved.")
         else:
             print("Already logged in. Profile works.")

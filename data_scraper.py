@@ -21,7 +21,7 @@ class DataScraper:
             os.makedirs(self.output_dir)
 
     def navigate_to_page(self, target_username):
-        print(f"Mirim baraye page: @{target_username}")
+        print(f"Looking for page: @{target_username}")
         wait = WebDriverWait(self.driver, 15)
 
         try:
@@ -66,11 +66,11 @@ class DataScraper:
             self.driver.execute_script("arguments[0].click();", target_profile_item)
 
             time.sleep(3)
-            print(f"Residim be profile @{target_username}.")
+            print(f"Reached profile @{target_username}.")
             return True
 
         except Exception as e:
-            print(f"Khata to navigate_to_page: {str(e)}")
+            print(f"Error when trying to navigate_to_page: {str(e)}")
             self.driver.get("https://m.rubika.ir/")
             time.sleep(4)
             return False
@@ -198,7 +198,7 @@ class DataScraper:
             if target_index is None:
                 stagnant_rounds += 1
                 if stagnant_rounds >= max_stagnant_rounds:
-                    print("Post jadidi peyda nashod, tamoom.")
+                    print("No new Post found, Exiting.")
                     break
                 self.scroll_and_load_posts(scroll_cycles=2, pause_time=1.5)
                 continue
@@ -361,7 +361,7 @@ class DataScraper:
             writer.writeheader()
             for product in product_list:
                 writer.writerow(product)
-        print(f"File CSV zakhire shod: {self.output_path}")
+        print(f"File CSV saved: {self.output_path}")
 
     def _convert_persian_nums(self, text):
         persian_digits = "۰۱۲۳۴۵۶۷۸۹"

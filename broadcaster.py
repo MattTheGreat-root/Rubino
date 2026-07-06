@@ -10,7 +10,7 @@ class Broadcaster:
         self.wait = WebDriverWait(self.driver, 15)
 
     def navigate_to_messenger(self):
-        print("Mirim too Messenger...")
+        print("Going Messenger mode...")
         try:
             self.driver.switch_to.default_content()
             time.sleep(1)
@@ -28,7 +28,7 @@ class Broadcaster:
             return True
 
     def send_to_list(self, username_list, test_message="Test"):
-        print(f"Ersal be {len(username_list)} nafar (Profile Bypass).")
+        print(f"Send to {len(username_list)} people (Profile Bypass).")
         
         from data_scraper import DataScraper
         scraper = DataScraper(self.driver)
@@ -65,16 +65,16 @@ class Broadcaster:
                 time.sleep(2)
                 
                 payam_box.send_keys(Keys.ENTER)
-                print(f"Payam ersal shod be {karbar}.")
+                print(f"Message sent to {karbar}.")
                 time.sleep(3) 
                 
             except Exception as e:
-                print(f"Khata baraye {karbar}: {str(e)}")
+                print(f"Error for {karbar}: {str(e)}")
             finally:
                 self.driver.switch_to.default_content()
 
     def broadcast_to_all(self, test_message="Test"):
-        print("Ersal be hameye mokhatebin...")
+        print("Sending to all the contacts...")
         
         try:
             chat_jadid = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//i[contains(@class, 'rbico-edit')] or contains(@class, 'btn-circle')]")))
@@ -87,7 +87,7 @@ class Broadcaster:
             time.sleep(2)
             
             if self.driver.find_elements(By.XPATH, "//li[contains(@class, 'chatlist-empty')]"):
-                print("Mokhatebi nist!")
+                print("No contact!")
                 self.navigate_to_messenger()
                 return
 
@@ -129,7 +129,7 @@ class Broadcaster:
                 return
             
             for esm in mokhatebin:
-                print(f" -> Ersal be: {esm}")
+                print(f" -> Sending to: {esm}")
                 try:
                     chat_jadid = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//i[contains(@class, 'rbico-edit')] or contains(@class, 'btn-circle')]")))
                     self.driver.execute_script("arguments[0].click();", chat_jadid)
@@ -179,7 +179,7 @@ class Broadcaster:
                     time.sleep(2)
                     
                 except Exception as e:
-                    print(f"Khata ersal be {esm}: {str(e)}")
+                    print(f"Error sending to {esm}: {str(e)}")
                     
                 finally:
                     self.driver.switch_to.default_content()
